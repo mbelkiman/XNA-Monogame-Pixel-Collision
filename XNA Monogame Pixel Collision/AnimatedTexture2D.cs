@@ -1,4 +1,5 @@
-﻿using Microsoft.Xna.Framework;
+using System;
+using Microsoft.Xna.Framework;
 using Microsoft.Xna.Framework.Content;
 using Microsoft.Xna.Framework.Graphics;
 
@@ -6,92 +7,131 @@ namespace XNA_Monogame_Pixel_Collision
 {
     internal class AnimatedTexture2D
     {
-        public Color Color = Color.White;
-        public Texture2D cropTexture;
-        public Vector2 Position = Vector2.Zero;
+        private const double FrameDurationSeconds = 0.1;
 
-        private int _columns = 0;
-        private int _currentColumn = 0;
-        private int _currentFrame = 0;
-        private int _currentLine = 0;
-        private float _elapsedTime = 0;
-        private int _frameHeight = 0;
-        private int _frameWidth = 0;
-        private int _lines = 0;
-        private Vector2 _origin = Vector2.Zero;
+        private readonly int _columns;
+        private int _currentFrame;
+        private readonly int _frameCount;
+        private double _elapsedTime;
+        private readonly int _frameHeight;
+        private readonly int _frameWidth;
+        private readonly Color[][] _framePixels;
         private Rectangle _source;
-        private Texture2D _texture;
+        private readonly Texture2D _texture;
+
+        public Color Color { get; set; } = Color.White;
+        public Color[] CurrentFramePixels => _framePixels[_currentFrame];
+        public int FrameHeight => _frameHeight;
+        public int FrameWidth => _frameWidth;
+        public Vector2 Origin { get; set; } = Vector2.Zero;
+        public Vector2 Position { get; set; } = Vector2.Zero;
+        public float Rotation { get; set; }
+        public Vector2 Scale { get; set; } = Vector2.One;
 
         public AnimatedTexture2D(ContentManager content, int columns, int lines, string assetName)
         {
             _texture = content.Load<Texture2D>(assetName);
+            ValidateFrameLayout(columns, lines);
 
             _columns = columns;
-            _lines = lines;
-            _frameWidth = _texture.Width / _columns;
-            _frameHeight = _texture.Height / _lines;
+            _frameCount = columns * lines;
+            _frameWidth = _texture.Width / columns;
+            _frameHeight = _texture.Height / lines;
+            _framePixels = CacheFramePixels();
 
-            //Set Origin to center
-            _origin = new Vector2(
-                _frameWidth / 2,
-                _frameHeight / 2);
+            UpdateSourceRectangle();
         }
 
-        public void Draw(GameTime gameTime, SpriteBatch spriteBatch, GraphicsDevice graphicsDevice)
+        public void Draw(SpriteBatch spriteBatch)
         {
-            Rectangle cropSource = new Rectangle(_currentFrame * _frameWidth, 0, _frameWidth, _frameHeight);
-            cropTexture = new Texture2D(graphicsDevice, cropSource.Width, cropSource.Height);
-            Color[] cropData = new Color[cropSource.Width * cropSource.Height];
-
-            _texture.GetData(0, cropSource, cropData, 0, cropData.Length);
-            cropTexture.SetData(cropData);
-
-            spriteBatch.Draw(texture: cropTexture, position: Position, color: Color, scale: new Vector2(1, 1));
-
-            //Original Image animated
-            /* spriteBatch.Draw(
-                             _texture,
-                             Position,
-                             _source,
-                             Color.White,
-                             0,
-                             _origin,
-                             1,
-                             SpriteEffects.None,
-                             0f);*/
-
-            Color[] textureData = new Color[_texture.Width * _texture.Height];
-            _texture.GetData(textureData);
+            spriteBatch.Draw(
+                _texture,
+                Position,
+                _source,
+                Color,
+                Rotation,
+                Origin,
+                Scale,
+                SpriteEffects.None,
+                0f);
         }
 
         public void Update(GameTime gameTime)
         {
-            if (gameTime != null)
-            {
-                _elapsedTime += (float)gameTime.ElapsedGameTime.TotalSeconds;
-            }
+            _elapsedTime += gameTime.ElapsedGameTime.TotalSeconds;
 
             //PLAY NEXT FRAME
-            while (_elapsedTime > 0.1f)
+            while (_elapsedTime >= FrameDurationSeconds)
             {
-                _currentFrame++;
-                _currentColumn++;
-                _elapsedTime = 0f;
+                _elapsedTime -= FrameDurationSeconds;
+                AdvanceFrame();
             }
+
+            UpdateSourceRectangle();
+        }
+
+        private void AdvanceFrame()
+        {
+            _currentFrame++;
 
             //RESET VALUES
-            if (_currentFrame > _columns - 1)
+            if (_currentFrame >= _frameCount)
             {
                 _currentFrame = 0;
-                _currentColumn = 0;
-                _currentLine = 0;
+            }
+        }
+
+        private Color[][] CacheFramePixels()
+        {
+            var framePixels = new Color[_frameCount][];
+            for (var frame = 0; frame < _frameCount; frame++)
+            {
+                framePixels[frame] = GetFramePixels(frame);
             }
 
-            // Calculate the source rectangle of the current frame.
-            _source = new Rectangle(_currentColumn * _frameWidth,
-                                    _currentLine * _frameHeight,
-                                    _frameWidth,
-                                    _frameHeight);
+            return framePixels;
+        }
+
+        private Color[] GetFramePixels(int frame)
+        {
+            var source = GetSourceRectangle(frame);
+            var pixels = new Color[_frameWidth * _frameHeight];
+            _texture.GetData(0, source, pixels, 0, pixels.Length);
+            return pixels;
+        }
+
+        private Rectangle GetSourceRectangle(int frame)
+        {
+            var column = frame % _columns;
+            var line = frame / _columns;
+            return new Rectangle(
+                column * _frameWidth,
+                line * _frameHeight,
+                _frameWidth,
+                _frameHeight);
+        }
+
+        private void UpdateSourceRectangle()
+        {
+            _source = GetSourceRectangle(_currentFrame);
+        }
+
+        private void ValidateFrameLayout(int columns, int lines)
+        {
+            if (columns <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(columns), "The spritesheet must have at least one column.");
+            }
+
+            if (lines <= 0)
+            {
+                throw new ArgumentOutOfRangeException(nameof(lines), "The spritesheet must have at least one line.");
+            }
+
+            if (_texture.Width % columns != 0 || _texture.Height % lines != 0)
+            {
+                throw new ArgumentException("The spritesheet dimensions must be evenly divisible by its frame layout.");
+            }
         }
     }
 }

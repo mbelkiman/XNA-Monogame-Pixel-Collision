@@ -3,7 +3,7 @@
 
 /outputDir:bin/$(Platform)
 /intermediateDir:obj/$(Platform)
-/platform:Windows
+/platform:DesktopGL
 /config:
 /profile:Reach
 /compress:False
@@ -12,6 +12,12 @@
 
 
 #---------------------------------- Content ---------------------------------#
+
+#begin FpsFont.spritefont
+/importer:FontDescriptionImporter
+/processor:FontDescriptionProcessor
+/processorParam:PremultiplyAlpha=True
+/build:FpsFont.spritefont
 
 #begin enemyA.png
 /importer:TextureImporter
@@ -48,4 +54,3 @@
 /processorParam:MakeSquare=False
 /processorParam:TextureFormat=Color
 /build:hand.png
-

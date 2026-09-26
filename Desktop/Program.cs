@@ -1,6 +1,7 @@
 ﻿using System;
+using XNA_Monogame_Pixel_Collision;
 
-namespace XNA_Monogame_Pixel_Collision
+namespace Desktop
 {
     /// <summary>
     /// The main class.
@@ -11,10 +12,10 @@ namespace XNA_Monogame_Pixel_Collision
         /// The main entry point for the application.
         /// </summary>
         [STAThread]
-        static void Main()
+        private static void Main()
         {
-            using (var game = new Game1())
-                game.Run();
+            using var game = new GameTester();
+            game.Run();
         }
     }
 }
