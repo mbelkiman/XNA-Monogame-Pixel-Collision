@@ -3,6 +3,20 @@ using Microsoft.Xna.Framework;
 
 namespace XNA_Monogame_Pixel_Collision
 {
+    /*
+     * Immutable snapshot of a sprite frame and the transform used to draw it.
+     *
+     * Intersects follows this sequence:
+     * 1. Receive cached pixels for the current sprite frame. The image is not cropped
+     *    or read from the GPU during collision detection.
+     * 2. Transform the four sprite corners to calculate an axis-aligned screen-space
+     *    bound for each collider.
+     * 3. Visit only the screen pixels inside the overlap of those two bounds.
+     * 4. Convert each screen-pixel center back into the local space of both sprites,
+     *    accounting for position, origin, rotation, and scale.
+     * 5. Read the matching cached pixels. A collision exists when both have alpha
+     *    greater than zero.
+     */
     internal readonly struct PixelCollider
     {
         private readonly Color[] _pixels;
@@ -28,6 +42,7 @@ namespace XNA_Monogame_Pixel_Collision
 
         public bool Intersects(in PixelCollider other)
         {
+            // Use transformed bounds as a cheap first pass before sampling pixels.
             var bounds = GetBounds();
             var otherBounds = other.GetBounds();
             var top = Math.Max(bounds.Top, otherBounds.Top);
@@ -39,7 +54,9 @@ namespace XNA_Monogame_Pixel_Collision
             {
                 for (var x = left; x < right; x++)
                 {
+                    // Sample the center of each screen pixel in both local sprite spaces.
                     var point = new Vector2(x + 0.5f, y + 0.5f);
+                    // A collision happens only when both sampled pixels are visible.
                     if (TryGetPixel(point, out var color) &&
                         other.TryGetPixel(point, out var otherColor) &&
                         color.A != 0 && otherColor.A != 0)
@@ -54,6 +71,7 @@ namespace XNA_Monogame_Pixel_Collision
 
         private Rectangle GetBounds()
         {
+            // Transform all four local corners to create an axis-aligned screen-space bound.
             var topLeft = TransformToWorld(Vector2.Zero);
             var topRight = TransformToWorld(new Vector2(_width, 0));
             var bottomLeft = TransformToWorld(new Vector2(0, _height));
@@ -73,6 +91,7 @@ namespace XNA_Monogame_Pixel_Collision
 
         private Vector2 TransformToWorld(Vector2 localPosition)
         {
+            // Match SpriteBatch's transform order: move around the origin, scale, rotate, then translate.
             var translatedPosition = (localPosition - _origin) * _scale;
             return _position + new Vector2(
                 translatedPosition.X * _cosRotation - translatedPosition.Y * _sinRotation,
@@ -87,6 +106,7 @@ namespace XNA_Monogame_Pixel_Collision
                 return false;
             }
 
+            // Apply the inverse transform to find which source pixel covers this screen point.
             var translatedPosition = worldPosition - _position;
             var unrotatedPosition = new Vector2(
                 translatedPosition.X * _cosRotation + translatedPosition.Y * _sinRotation,
